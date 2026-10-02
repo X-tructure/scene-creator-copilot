@@ -30,7 +30,7 @@ GENERATED_DIR.mkdir(exist_ok=True)
 
 def get_agent_url() -> str:
     """Get the agent's base URL for serving static files."""
-    return os.getenv("AGENT_URL", "http://localhost:8000")
+    return os.getenv("AGENT_URL", "http://localhost:8123")
 
 
 def get_image_path(image_url: str) -> Path:
@@ -40,8 +40,13 @@ def get_image_path(image_url: str) -> Path:
 
     # Handle absolute URLs from agent
     agent_url = get_agent_url()
+    # Ensure agent_url ends with slash for consistent stripping
+    if not agent_url.endswith("/"):
+        agent_url += "/"
+
     if base_url.startswith(agent_url):
-        base_url = base_url[len(agent_url):]
+        # Strip the base URL and ensure we have a leading slash for the next check
+        base_url = "/" + base_url[len(agent_url):]
 
     # Handle relative /generated/ URLs
     if base_url.startswith("/generated/"):
@@ -134,9 +139,13 @@ async def generate_image(prompt: str, input_images: List[str] = None, api_key: s
     }
 
     async with httpx.AsyncClient(timeout=60.0) as client:
-        response = await client.post(url, json=payload, headers=headers)
-        response.raise_for_status()
-        data = response.json()
+        try:
+            response = await client.post(url, json=payload, headers=headers)
+            response.raise_for_status()
+            data = response.json()
+        except Exception as e:
+            print(f"Error generating image: {e}")
+            return None
 
     # Extract image data from response and save to disk
     if "candidates" in data and len(data["candidates"]) > 0:
@@ -221,9 +230,13 @@ async def edit_image(image_url: str, edit_prompt: str, api_key: str = None) -> s
     }
 
     async with httpx.AsyncClient(timeout=60.0) as client:
-        response = await client.post(url, json=payload, headers=headers)
-        response.raise_for_status()
-        data = response.json()
+        try:
+            response = await client.post(url, json=payload, headers=headers)
+            response.raise_for_status()
+            data = response.json()
+        except Exception as e:
+            print(f"Error editing image: {e}")
+            return None
 
     # Extract and save the edited image (overwrite original)
     if "candidates" in data and len(data["candidates"]) > 0:
